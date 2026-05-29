@@ -1,0 +1,307 @@
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEditor.Events;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+public static class Challenge5ProjectSetup
+{
+    private const string ScenePath = "Assets/Scenes/Challenge5.unity";
+
+    public static void CreateProject()
+    {
+        EnsureFolders();
+        var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        scene.name = "Challenge5";
+
+        var materials = CreateMaterials();
+        CreateCamera();
+        CreateBoard(materials["BoardLight"], materials["BoardDark"]);
+
+        GameObject explosionPrefab = CreateExplosionPrefab(materials["Explosion"]);
+        var targetPrefabs = new List<GameObject>
+        {
+            CreateTargetPrefab("AppleTarget", PrimitiveType.Sphere, materials["Apple"], 10, false, 1.2f, explosionPrefab),
+            CreateTargetPrefab("PizzaTarget", PrimitiveType.Cylinder, materials["Pizza"], 15, false, 1.0f, explosionPrefab),
+            CreateTargetPrefab("CookieTarget", PrimitiveType.Cube, materials["Cookie"], 5, false, 1.35f, explosionPrefab),
+            CreateTargetPrefab("SkullTarget", PrimitiveType.Sphere, materials["Bad"], 0, true, 1.1f, explosionPrefab)
+        };
+
+        var manager = new GameObject("Game Manager").AddComponent<GameManagerX>();
+        var canvas = CreateCanvas();
+        var scoreText = CreateText(canvas.transform, "Score Text", "Score: 0", new Vector2(24f, -24f), TextAnchor.UpperLeft, 28);
+        var timeText = CreateText(canvas.transform, "Time Text", "Time: 60", new Vector2(-24f, -24f), TextAnchor.UpperRight, 28);
+        var gameOverText = CreateText(canvas.transform, "Game Over Text", "GAME OVER", new Vector2(0f, 80f), TextAnchor.MiddleCenter, 44);
+        gameOverText.color = new Color(0.9f, 0.12f, 0.08f);
+
+        var titleScreen = new GameObject("Title Screen", typeof(RectTransform));
+        titleScreen.transform.SetParent(canvas.transform, false);
+        Stretch(titleScreen.GetComponent<RectTransform>());
+
+        var title = CreateText(titleScreen.transform, "Title", "Whack-a-Food", new Vector2(0f, 150f), TextAnchor.MiddleCenter, 48);
+        title.color = new Color(0.1f, 0.12f, 0.16f);
+        CreateDifficultyButton(titleScreen.transform, "Easy Button", "Easy", new Vector2(-170f, 20f), 1);
+        CreateDifficultyButton(titleScreen.transform, "Medium Button", "Medium", new Vector2(0f, 20f), 2);
+        CreateDifficultyButton(titleScreen.transform, "Hard Button", "Hard", new Vector2(170f, 20f), 3);
+
+        var restartButton = CreateButton(canvas.transform, "Restart Button", "Restart", new Vector2(0f, -80f), new Vector2(180f, 52f));
+        UnityEventTools.AddPersistentListener(restartButton.onClick, manager.RestartGame);
+
+        ConfigureManager(manager, scoreText, timeText, gameOverText, titleScreen, restartButton, targetPrefabs);
+        CreateEventSystem();
+
+        EditorSceneManager.SaveScene(scene, ScenePath);
+        EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+        AssetDatabase.SaveAssets();
+    }
+
+    private static void EnsureFolders()
+    {
+        CreateFolder("Assets", "Scenes");
+        CreateFolder("Assets", "Prefabs");
+        CreateFolder("Assets", "Materials");
+    }
+
+    private static Dictionary<string, Material> CreateMaterials()
+    {
+        return new Dictionary<string, Material>
+        {
+            ["BoardLight"] = CreateMaterial("BoardLight", new Color(0.88f, 0.92f, 0.84f)),
+            ["BoardDark"] = CreateMaterial("BoardDark", new Color(0.68f, 0.78f, 0.60f)),
+            ["Apple"] = CreateMaterial("AppleRed", new Color(0.9f, 0.12f, 0.08f)),
+            ["Pizza"] = CreateMaterial("PizzaGold", new Color(1f, 0.66f, 0.16f)),
+            ["Cookie"] = CreateMaterial("CookieBrown", new Color(0.55f, 0.33f, 0.16f)),
+            ["Bad"] = CreateMaterial("BadTargetPurple", new Color(0.42f, 0.18f, 0.55f)),
+            ["Explosion"] = CreateMaterial("ExplosionOrange", new Color(1f, 0.4f, 0.08f))
+        };
+    }
+
+    private static Material CreateMaterial(string name, Color color)
+    {
+        string path = "Assets/Materials/" + name + ".mat";
+        var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        var material = new Material(Shader.Find("Standard"));
+        material.color = color;
+        AssetDatabase.CreateAsset(material, path);
+        return material;
+    }
+
+    private static void CreateCamera()
+    {
+        var cameraObject = new GameObject("Main Camera");
+        cameraObject.tag = "MainCamera";
+        cameraObject.transform.position = new Vector3(0f, 0f, -10f);
+
+        var camera = cameraObject.AddComponent<Camera>();
+        camera.orthographic = true;
+        camera.orthographicSize = 6f;
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = new Color(0.93f, 0.96f, 0.98f);
+
+        var light = new GameObject("Directional Light");
+        light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+        light.AddComponent<Light>().type = LightType.Directional;
+    }
+
+    private static void CreateBoard(Material lightMaterial, Material darkMaterial)
+    {
+        const float step = 2.5f;
+        const float min = -3.75f;
+
+        for (int y = 0; y < 4; y++)
+        {
+            for (int x = 0; x < 4; x++)
+            {
+                var tile = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                tile.name = "Board Tile " + x + "-" + y;
+                tile.transform.position = new Vector3(min + x * step, min + y * step, 0.5f);
+                tile.transform.localScale = new Vector3(2.35f, 2.35f, 0.1f);
+                tile.GetComponent<Renderer>().sharedMaterial = (x + y) % 2 == 0 ? lightMaterial : darkMaterial;
+                Object.DestroyImmediate(tile.GetComponent<Collider>());
+            }
+        }
+    }
+
+    private static GameObject CreateTargetPrefab(string name, PrimitiveType primitive, Material material, int points, bool bad, float timeOnScreen, GameObject explosionPrefab)
+    {
+        string path = "Assets/Prefabs/" + name + ".prefab";
+        var root = GameObject.CreatePrimitive(primitive);
+        root.name = name;
+        root.transform.localScale = bad ? Vector3.one * 0.95f : Vector3.one * 0.85f;
+        root.GetComponent<Renderer>().sharedMaterial = material;
+
+        var target = root.AddComponent<TargetX>();
+        var serialized = new SerializedObject(target);
+        serialized.FindProperty("pointValue").intValue = points;
+        serialized.FindProperty("badTarget").boolValue = bad;
+        serialized.FindProperty("explosionFx").objectReferenceValue = explosionPrefab;
+        serialized.FindProperty("timeOnScreen").floatValue = timeOnScreen;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+
+        var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
+        Object.DestroyImmediate(root);
+        return prefab;
+    }
+
+    private static GameObject CreateExplosionPrefab(Material material)
+    {
+        string path = "Assets/Prefabs/ClickExplosion.prefab";
+        var root = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        root.name = "ClickExplosion";
+        root.transform.localScale = Vector3.one * 0.35f;
+        root.GetComponent<Renderer>().sharedMaterial = material;
+        Object.DestroyImmediate(root.GetComponent<Collider>());
+        root.AddComponent<DestroyAfterSeconds>();
+
+        var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
+        Object.DestroyImmediate(root);
+        return prefab;
+    }
+
+    private static Canvas CreateCanvas()
+    {
+        var canvasObject = new GameObject("Canvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        var canvas = canvasObject.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+        var scaler = canvasObject.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1280f, 720f);
+        return canvas;
+    }
+
+    private static Text CreateText(Transform parent, string name, string text, Vector2 position, TextAnchor anchor, int size)
+    {
+        var textObject = new GameObject(name, typeof(RectTransform), typeof(Text));
+        textObject.transform.SetParent(parent, false);
+        var rect = textObject.GetComponent<RectTransform>();
+        rect.sizeDelta = new Vector2(360f, 70f);
+        rect.anchoredPosition = position;
+        SetAnchor(rect, anchor);
+
+        var label = textObject.GetComponent<Text>();
+        label.text = text;
+        label.font = BuiltInFont();
+        label.fontSize = size;
+        label.alignment = anchor;
+        label.color = Color.black;
+        return label;
+    }
+
+    private static Button CreateDifficultyButton(Transform parent, string name, string label, Vector2 position, int difficulty)
+    {
+        var button = CreateButton(parent, name, label, position, new Vector2(150f, 52f));
+        var difficultyButton = button.gameObject.AddComponent<DifficultyButtonX>();
+        var serialized = new SerializedObject(difficultyButton);
+        serialized.FindProperty("difficulty").intValue = difficulty;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        return button;
+    }
+
+    private static Button CreateButton(Transform parent, string name, string label, Vector2 position, Vector2 size)
+    {
+        var buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+        buttonObject.transform.SetParent(parent, false);
+        var rect = buttonObject.GetComponent<RectTransform>();
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
+        SetAnchor(rect, TextAnchor.MiddleCenter);
+
+        var image = buttonObject.GetComponent<Image>();
+        image.color = new Color(0.12f, 0.42f, 0.62f);
+
+        var button = buttonObject.GetComponent<Button>();
+        var colors = button.colors;
+        colors.highlightedColor = new Color(0.18f, 0.55f, 0.78f);
+        colors.pressedColor = new Color(0.08f, 0.30f, 0.45f);
+        button.colors = colors;
+
+        var labelObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
+        labelObject.transform.SetParent(buttonObject.transform, false);
+        Stretch(labelObject.GetComponent<RectTransform>());
+
+        var text = labelObject.GetComponent<Text>();
+        text.text = label;
+        text.font = BuiltInFont();
+        text.fontSize = 24;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = Color.white;
+        return button;
+    }
+
+    private static void ConfigureManager(GameManagerX manager, Text scoreText, Text timeText, Text gameOverText, GameObject titleScreen, Button restartButton, List<GameObject> targetPrefabs)
+    {
+        var serialized = new SerializedObject(manager);
+        serialized.FindProperty("scoreText").objectReferenceValue = scoreText;
+        serialized.FindProperty("timeText").objectReferenceValue = timeText;
+        serialized.FindProperty("gameOverText").objectReferenceValue = gameOverText;
+        serialized.FindProperty("titleScreen").objectReferenceValue = titleScreen;
+        serialized.FindProperty("restartButton").objectReferenceValue = restartButton;
+
+        var list = serialized.FindProperty("targetPrefabs");
+        list.arraySize = targetPrefabs.Count;
+        for (int i = 0; i < targetPrefabs.Count; i++)
+        {
+            list.GetArrayElementAtIndex(i).objectReferenceValue = targetPrefabs[i];
+        }
+
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void CreateEventSystem()
+    {
+        if (Object.FindFirstObjectByType<EventSystem>() != null)
+        {
+            return;
+        }
+
+        var eventSystem = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+        eventSystem.transform.position = Vector3.zero;
+    }
+
+    private static void CreateFolder(string parent, string child)
+    {
+        string path = parent + "/" + child;
+        if (!AssetDatabase.IsValidFolder(path))
+        {
+            AssetDatabase.CreateFolder(parent, child);
+        }
+    }
+
+    private static Font BuiltInFont()
+    {
+        var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        return font != null ? font : Resources.GetBuiltinResource<Font>("Arial.ttf");
+    }
+
+    private static void Stretch(RectTransform rect)
+    {
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+    }
+
+    private static void SetAnchor(RectTransform rect, TextAnchor anchor)
+    {
+        Vector2 anchorPoint = anchor switch
+        {
+            TextAnchor.UpperLeft => new Vector2(0f, 1f),
+            TextAnchor.UpperRight => new Vector2(1f, 1f),
+            TextAnchor.MiddleCenter => new Vector2(0.5f, 0.5f),
+            _ => new Vector2(0.5f, 0.5f)
+        };
+
+        rect.anchorMin = anchorPoint;
+        rect.anchorMax = anchorPoint;
+        rect.pivot = anchorPoint;
+    }
+}
