@@ -10,6 +10,8 @@ using UnityEngine.UI;
 public static class Challenge5ProjectSetup
 {
     private const string ScenePath = "Assets/Scenes/Challenge5.unity";
+    private const string OfficialScenePath = "Assets/Challenge 5/Challenge 5.unity";
+    private const float OfficialTargetScale = 3.5f;
     private static readonly string[] LegacyMaterialPaths =
     {
         "Assets/Challenge 5/_Source_Files/Materials/Black.mat",
@@ -18,6 +20,13 @@ public static class Challenge5ProjectSetup
         "Assets/Course Library/_Source_Files/Materials/PolygonPrototype_Texture_01.mat",
         "Assets/Course Library/_Source_Files/Materials/SimpleDogs.mat",
         "Assets/Course Library/_Source_Files/Materials/SimpleItems.mat"
+    };
+    private static readonly string[] OfficialPlayableTargetPaths =
+    {
+        "Assets/Challenge 5/Prefabs/Playable/PlayableCookieTarget.prefab",
+        "Assets/Challenge 5/Prefabs/Playable/PlayablePizzaTarget.prefab",
+        "Assets/Challenge 5/Prefabs/Playable/PlayableSteakTarget.prefab",
+        "Assets/Challenge 5/Prefabs/Playable/PlayableSkullTarget.prefab"
     };
 
     public static void CreateProject()
@@ -112,6 +121,126 @@ public static class Challenge5ProjectSetup
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         Debug.Log($"[Challenge5] Repaired {repaired} legacy materials for Unity 6.");
+    }
+
+    public static void RepairOfficialChallengeSceneVisuals()
+    {
+        RepairLegacyMaterials();
+        RepairPlayableTargetScale();
+
+        var scene = EditorSceneManager.OpenScene(OfficialScenePath, OpenSceneMode.Single);
+        GameObject gameOverText = FindSceneObject("Game Over Text");
+        GameObject restartButton = FindSceneObject("Restart Button");
+
+        SetButtonTextColor("Easy Button", new Color(0.12f, 0.14f, 0.16f, 1f), 28);
+        SetButtonTextColor("Medium Button", new Color(0.12f, 0.14f, 0.16f, 1f), 28);
+        SetButtonTextColor("Hard Button", new Color(0.12f, 0.14f, 0.16f, 1f), 28);
+        SetButtonTextColor("Restart Button", Color.white, 28);
+
+        if (gameOverText != null)
+        {
+            Text label = gameOverText.GetComponent<Text>();
+            if (label != null)
+            {
+                label.color = new Color(0.9f, 0.12f, 0.08f, 1f);
+                label.fontSize = 52;
+            }
+
+            RectTransform rect = gameOverText.GetComponent<RectTransform>();
+            if (rect != null)
+            {
+                rect.sizeDelta = new Vector2(460f, 90f);
+                rect.anchoredPosition = new Vector2(0f, 105f);
+            }
+
+            gameOverText.SetActive(false);
+            EditorUtility.SetDirty(gameOverText);
+        }
+
+        if (restartButton != null)
+        {
+            RectTransform rect = restartButton.GetComponent<RectTransform>();
+            if (rect != null)
+            {
+                rect.sizeDelta = new Vector2(200f, 58f);
+                rect.anchoredPosition = new Vector2(0f, -90f);
+            }
+
+            restartButton.SetActive(false);
+            EditorUtility.SetDirty(restartButton);
+        }
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        AssetDatabase.SaveAssets();
+        Debug.Log("[Challenge5] Repaired official Challenge 5 scene visuals.");
+    }
+
+    private static void RepairPlayableTargetScale()
+    {
+        foreach (string path in OfficialPlayableTargetPaths)
+        {
+            GameObject prefabRoot = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                prefabRoot.transform.localScale = Vector3.one * OfficialTargetScale;
+                PrefabUtility.SaveAsPrefabAsset(prefabRoot, path);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(prefabRoot);
+            }
+        }
+    }
+
+    private static GameObject FindSceneObject(string objectName)
+    {
+        foreach (GameObject root in SceneManager.GetActiveScene().GetRootGameObjects())
+        {
+            Transform match = FindChildRecursive(root.transform, objectName);
+            if (match != null)
+            {
+                return match.gameObject;
+            }
+        }
+
+        return null;
+    }
+
+    private static Transform FindChildRecursive(Transform root, string objectName)
+    {
+        if (root.name == objectName)
+        {
+            return root;
+        }
+
+        foreach (Transform child in root)
+        {
+            Transform match = FindChildRecursive(child, objectName);
+            if (match != null)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private static void SetButtonTextColor(string buttonName, Color color, int fontSize)
+    {
+        GameObject buttonObject = FindSceneObject(buttonName);
+        if (buttonObject == null)
+        {
+            return;
+        }
+
+        Text label = buttonObject.GetComponentInChildren<Text>(true);
+        if (label != null)
+        {
+            label.color = color;
+            label.fontSize = fontSize;
+            EditorUtility.SetDirty(label);
+        }
     }
 
     private static Texture GetTextureIfPresent(Material material, string propertyName)
