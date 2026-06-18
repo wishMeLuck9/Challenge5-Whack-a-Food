@@ -8,6 +8,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1134856412, guid: 9cc97627ed18b449695d703ab651f5cd, type: 3}
+      propertyPath: m_UseGravity
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 5817859361576445215, guid: 9cc97627ed18b449695d703ab651f5cd, type: 3}
       propertyPath: m_Name
       value: PlayableCookieTarget
@@ -94,3 +98,8 @@ MonoBehaviour:
   badTarget: 0
   explosionFx: {fileID: 8328426341284958323, guid: add0094915541482eba1289c3174a5ca, type: 3}
   timeOnScreen: 1.35
+  minSpeed: 12
+  maxSpeed: 16
+  maxTorque: 10
+  xRange: 4
+  ySpawnPos: -4.5

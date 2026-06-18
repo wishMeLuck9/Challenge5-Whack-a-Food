@@ -18,10 +18,6 @@ public class GameManagerX : MonoBehaviour
 
     public bool isGameActive { get; private set; }
 
-    private const float SpaceBetweenSquares = 2.5f;
-    private const float MinValueX = -3.75f;
-    private const float MinValueY = -3.75f;
-
     private int score;
     private float spawnRate;
     private float remainingTime;
@@ -143,20 +139,8 @@ public class GameManagerX : MonoBehaviour
             }
 
             int index = Random.Range(0, targetPrefabs.Count);
-            Instantiate(targetPrefabs[index], RandomSpawnPosition(), targetPrefabs[index].transform.rotation);
+            Instantiate(targetPrefabs[index], targetPrefabs[index].transform.position, targetPrefabs[index].transform.rotation);
         }
-    }
-
-    private Vector3 RandomSpawnPosition()
-    {
-        float spawnPosX = MinValueX + RandomSquareIndex() * SpaceBetweenSquares;
-        float spawnPosY = MinValueY + RandomSquareIndex() * SpaceBetweenSquares;
-        return new Vector3(spawnPosX, spawnPosY, 0f);
-    }
-
-    private int RandomSquareIndex()
-    {
-        return Random.Range(0, 4);
     }
 
     private void UpdateTimeLabel()

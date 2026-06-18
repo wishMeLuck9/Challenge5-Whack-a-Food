@@ -8,6 +8,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1096861108, guid: 591e0b0a9b4dd4709ad61b99dabf57ef, type: 3}
+      propertyPath: m_UseGravity
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3867821073191959212, guid: 591e0b0a9b4dd4709ad61b99dabf57ef, type: 3}
       propertyPath: m_Name
       value: PlayableSkullTarget
@@ -94,3 +98,8 @@ MonoBehaviour:
   badTarget: 1
   explosionFx: {fileID: 8328426341284958323, guid: ad604245d81df4d9faffb305340f5797, type: 3}
   timeOnScreen: 1.1
+  minSpeed: 12
+  maxSpeed: 16
+  maxTorque: 10
+  xRange: 4
+  ySpawnPos: -4.5

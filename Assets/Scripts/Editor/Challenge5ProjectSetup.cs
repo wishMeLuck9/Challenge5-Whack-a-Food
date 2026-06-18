@@ -129,6 +129,7 @@ public static class Challenge5ProjectSetup
         RepairPlayableTargetScale();
 
         var scene = EditorSceneManager.OpenScene(OfficialScenePath, OpenSceneMode.Single);
+        RepairFlyingSensor();
         GameObject gameOverText = FindSceneObject("Game Over Text");
         GameObject restartButton = FindSceneObject("Restart Button");
 
@@ -172,8 +173,9 @@ public static class Challenge5ProjectSetup
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
+        EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(OfficialScenePath, true) };
         AssetDatabase.SaveAssets();
-        Debug.Log("[Challenge5] Repaired official Challenge 5 scene visuals.");
+        Debug.Log("[Challenge5] Repaired official Challenge 5 scene visuals and flying target setup.");
     }
 
     private static void RepairPlayableTargetScale()
@@ -184,6 +186,27 @@ public static class Challenge5ProjectSetup
             try
             {
                 prefabRoot.transform.localScale = Vector3.one * OfficialTargetScale;
+                Rigidbody rigidbody = prefabRoot.GetComponent<Rigidbody>();
+                if (rigidbody == null)
+                {
+                    rigidbody = prefabRoot.AddComponent<Rigidbody>();
+                }
+
+                rigidbody.useGravity = true;
+                rigidbody.isKinematic = false;
+                rigidbody.mass = 1f;
+                rigidbody.collisionDetectionMode = CollisionDetectionMode.Discrete;
+                rigidbody.interpolation = RigidbodyInterpolation.None;
+                rigidbody.constraints = RigidbodyConstraints.None;
+                EditorUtility.SetDirty(rigidbody);
+
+                foreach (Collider collider in prefabRoot.GetComponentsInChildren<Collider>(true))
+                {
+                    collider.isTrigger = true;
+                    EditorUtility.SetDirty(collider);
+                }
+
+                EditorUtility.SetDirty(prefabRoot);
                 PrefabUtility.SaveAsPrefabAsset(prefabRoot, path);
             }
             finally
@@ -191,6 +214,54 @@ public static class Challenge5ProjectSetup
                 PrefabUtility.UnloadPrefabContents(prefabRoot);
             }
         }
+    }
+
+    private static void RepairFlyingSensor()
+    {
+        GameObject sensor = FindSceneObject("Sensor");
+        if (sensor == null)
+        {
+            Debug.LogWarning("[Challenge5] Could not find Sensor in the official scene.");
+            return;
+        }
+
+        try
+        {
+            sensor.tag = "Sensor";
+        }
+        catch (UnityException)
+        {
+            Debug.LogWarning("[Challenge5] Sensor tag is missing from TagManager; keeping existing tag.");
+        }
+
+        sensor.transform.position = new Vector3(0f, -8f, 0f);
+        sensor.transform.rotation = Quaternion.identity;
+        sensor.transform.localScale = Vector3.one;
+
+        foreach (Renderer renderer in sensor.GetComponentsInChildren<Renderer>(true))
+        {
+            renderer.enabled = false;
+            EditorUtility.SetDirty(renderer);
+        }
+
+        MeshCollider meshCollider = sensor.GetComponent<MeshCollider>();
+        if (meshCollider != null)
+        {
+            Object.DestroyImmediate(meshCollider);
+        }
+
+        BoxCollider boxCollider = sensor.GetComponent<BoxCollider>();
+        if (boxCollider == null)
+        {
+            boxCollider = sensor.AddComponent<BoxCollider>();
+        }
+
+        boxCollider.isTrigger = true;
+        boxCollider.center = Vector3.zero;
+        boxCollider.size = new Vector3(14f, 0.5f, 2f);
+
+        EditorUtility.SetDirty(sensor);
+        EditorUtility.SetDirty(boxCollider);
     }
 
     private static GameObject FindSceneObject(string objectName)
