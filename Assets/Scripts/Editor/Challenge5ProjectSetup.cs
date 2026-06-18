@@ -10,10 +10,21 @@ using UnityEngine.UI;
 public static class Challenge5ProjectSetup
 {
     private const string ScenePath = "Assets/Scenes/Challenge5.unity";
+    private static readonly string[] LegacyMaterialPaths =
+    {
+        "Assets/Challenge 5/_Source_Files/Materials/Black.mat",
+        "Assets/Challenge 5/_Source_Files/Materials/PolygonPrototype_Texture_Grid_06.mat",
+        "Assets/Course Library/_Source_Files/Materials/lambert1.mat",
+        "Assets/Course Library/_Source_Files/Materials/PolygonPrototype_Texture_01.mat",
+        "Assets/Course Library/_Source_Files/Materials/SimpleDogs.mat",
+        "Assets/Course Library/_Source_Files/Materials/SimpleItems.mat"
+    };
 
     public static void CreateProject()
     {
         EnsureFolders();
+        RepairLegacyMaterials();
+
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         scene.name = "Challenge5";
 
@@ -56,6 +67,96 @@ public static class Challenge5ProjectSetup
         EditorSceneManager.SaveScene(scene, ScenePath);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
         AssetDatabase.SaveAssets();
+    }
+
+    public static void RepairLegacyMaterials()
+    {
+        Shader standardShader = Shader.Find("Standard");
+        if (standardShader == null)
+        {
+            Debug.LogError("[Challenge5] Could not find the built-in Standard shader.");
+            return;
+        }
+
+        int repaired = 0;
+        foreach (string path in LegacyMaterialPaths)
+        {
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                Debug.LogWarning($"[Challenge5] Legacy material missing: {path}");
+                continue;
+            }
+
+            Texture mainTexture = GetTextureIfPresent(material, "_BaseMap") ?? GetTextureIfPresent(material, "_MainTex");
+            Vector2 textureScale = GetTextureScaleIfPresent(material, "_BaseMap", "_MainTex");
+            Vector2 textureOffset = GetTextureOffsetIfPresent(material, "_BaseMap", "_MainTex");
+            Color color = path.EndsWith("Black.mat") ? Color.black : GetColorIfPresent(material, "_BaseColor", "_Color");
+            float smoothness = GetFloatIfPresent(material, "_Smoothness", "_Glossiness", 0.2f);
+
+            material.shader = standardShader;
+            material.color = color;
+            material.SetFloat("_Glossiness", smoothness);
+            material.SetFloat("_Metallic", 0f);
+            if (mainTexture != null)
+            {
+                material.mainTexture = mainTexture;
+                material.mainTextureScale = textureScale;
+                material.mainTextureOffset = textureOffset;
+            }
+
+            EditorUtility.SetDirty(material);
+            repaired++;
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Debug.Log($"[Challenge5] Repaired {repaired} legacy materials for Unity 6.");
+    }
+
+    private static Texture GetTextureIfPresent(Material material, string propertyName)
+    {
+        return material.HasProperty(propertyName) ? material.GetTexture(propertyName) : null;
+    }
+
+    private static Vector2 GetTextureScaleIfPresent(Material material, string preferredProperty, string fallbackProperty)
+    {
+        if (material.HasProperty(preferredProperty))
+        {
+            return material.GetTextureScale(preferredProperty);
+        }
+
+        return material.HasProperty(fallbackProperty) ? material.GetTextureScale(fallbackProperty) : Vector2.one;
+    }
+
+    private static Vector2 GetTextureOffsetIfPresent(Material material, string preferredProperty, string fallbackProperty)
+    {
+        if (material.HasProperty(preferredProperty))
+        {
+            return material.GetTextureOffset(preferredProperty);
+        }
+
+        return material.HasProperty(fallbackProperty) ? material.GetTextureOffset(fallbackProperty) : Vector2.zero;
+    }
+
+    private static Color GetColorIfPresent(Material material, string preferredProperty, string fallbackProperty)
+    {
+        if (material.HasProperty(preferredProperty))
+        {
+            return material.GetColor(preferredProperty);
+        }
+
+        return material.HasProperty(fallbackProperty) ? material.GetColor(fallbackProperty) : Color.white;
+    }
+
+    private static float GetFloatIfPresent(Material material, string preferredProperty, string fallbackProperty, float defaultValue)
+    {
+        if (material.HasProperty(preferredProperty))
+        {
+            return material.GetFloat(preferredProperty);
+        }
+
+        return material.HasProperty(fallbackProperty) ? material.GetFloat(fallbackProperty) : defaultValue;
     }
 
     private static void EnsureFolders()
